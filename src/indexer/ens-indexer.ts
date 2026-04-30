@@ -29,7 +29,6 @@ function chainForId(chainId: number) {
   }
 }
 
-const BATCH_SIZE = 100n; // blocks per getLogs call (matches grailsmarket value)
 const STARTUP_LOOKBACK_BLOCKS = 25n; // ~5 minutes on mainnet
 
 export interface IndexerStatus {
@@ -46,6 +45,7 @@ export class ENSIndexer {
   private readonly resolver: NameResolver;
   private readonly state: StateStore;
   private readonly confirmations: bigint;
+  private readonly logRangeBlocks: bigint;
 
   private running = false;
   private lastProcessedBlock = 0n;
@@ -66,6 +66,7 @@ export class ENSIndexer {
     this.resolver = new NameResolver(config, logger);
     this.state = new StateStore(config.statePath, logger);
     this.confirmations = BigInt(config.confirmations);
+    this.logRangeBlocks = BigInt(config.logRangeBlocks);
   }
 
   status(): IndexerStatus {
@@ -133,7 +134,9 @@ export class ENSIndexer {
     let cursor = this.lastProcessedBlock + 1n;
     while (cursor <= safeTip) {
       const toBlock =
-        cursor + BATCH_SIZE - 1n > safeTip ? safeTip : cursor + BATCH_SIZE - 1n;
+        cursor + this.logRangeBlocks - 1n > safeTip
+          ? safeTip
+          : cursor + this.logRangeBlocks - 1n;
 
       await this.processRange(cursor, toBlock);
 

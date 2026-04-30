@@ -6,10 +6,12 @@ const ENV_KEYS = [
   'CHAIN_ID',
   'METADATA_INVALIDATION_BASE_URL',
   'METADATA_INVALIDATION_AUTH_TOKEN',
+  'CACHE_INVALIDATION_AUTH_TOKEN',
   'THE_GRAPH_ENS_SUBGRAPH_URL',
   'THE_GRAPH_API_KEY',
   'PORT',
   'CONFIRMATIONS',
+  'LOG_RANGE_BLOCKS',
 ];
 
 function setEnv(values: Record<string, string | undefined>) {
@@ -47,12 +49,40 @@ describe('loadConfig', () => {
     const cfg = loadConfig();
     expect(cfg.chainId).toBe(1);
     expect(cfg.confirmations).toBe(12);
+    expect(cfg.logRangeBlocks).toBe(100);
     expect(cfg.batchMaxSize).toBe(100);
+    expect(cfg.metadataInvalidation.authToken).toBe('tok');
+  });
+
+  it('loads a custom getLogs block range', () => {
+    setEnv({
+      RPC_URL: 'https://eth.example.com',
+      CHAIN_ID: '1',
+      METADATA_INVALIDATION_BASE_URL: 'https://meta.example.com',
+      METADATA_INVALIDATION_AUTH_TOKEN: 'tok',
+      THE_GRAPH_ENS_SUBGRAPH_URL: 'https://graph.example.com',
+      LOG_RANGE_BLOCKS: '5',
+    });
+    const cfg = loadConfig();
+    expect(cfg.logRangeBlocks).toBe(5);
+  });
+
+  it('accepts CACHE_INVALIDATION_AUTH_TOKEN as an auth token alias', () => {
+    setEnv({
+      RPC_URL: 'https://eth.example.com',
+      CHAIN_ID: '1',
+      METADATA_INVALIDATION_BASE_URL: 'https://meta.example.com',
+      CACHE_INVALIDATION_AUTH_TOKEN: 'tok',
+      THE_GRAPH_ENS_SUBGRAPH_URL: 'https://graph.example.com',
+    });
+    const cfg = loadConfig();
     expect(cfg.metadataInvalidation.authToken).toBe('tok');
   });
 
   it('throws on missing required vars', () => {
     setEnv({});
-    expect(() => loadConfig()).toThrow(/Invalid configuration/);
+    expect(() => loadConfig()).toThrow(
+      /metadataInvalidation\.authToken \(METADATA_INVALIDATION_AUTH_TOKEN or CACHE_INVALIDATION_AUTH_TOKEN\)/,
+    );
   });
 });

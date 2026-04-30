@@ -47,6 +47,7 @@ Copy `.env.example` to `.env` and fill in:
 | `START_BLOCK` | no | latest − 25 | Used only on first run |
 | `POLL_INTERVAL_MS` | no | 2000 | |
 | `CONFIRMATIONS` | no | 12 | Match grailsmarket indexer |
+| `LOG_RANGE_BLOCKS` | no | 100 | Blocks per `eth_getLogs` request; use `5` for QuickNode Discover plan |
 | `BATCH_WINDOW_MS` | no | 2000 | |
 | `BATCH_MAX_SIZE` | no | 100 | |
 | `STATE_PATH` | no | `./data/state.json` | |
@@ -73,7 +74,7 @@ Health endpoints:
 1. Connect the repo, pick "Dockerfile" builder.
 2. Set the env vars above.
 3. Mount a volume at `./data` to persist `state.json` across deploys.
-4. Healthcheck path: `/health`.
+4. If using QuickNode's Discover plan, set `LOG_RANGE_BLOCKS=5`.
 
 ## v1 known gaps
 

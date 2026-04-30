@@ -12,6 +12,7 @@ async function main() {
     {
       chainId: config.chainId,
       confirmations: config.confirmations,
+      logRangeBlocks: config.logRangeBlocks,
       pollIntervalMs: config.pollIntervalMs,
       batchWindowMs: config.batchWindowMs,
       batchMaxSize: config.batchMaxSize,
