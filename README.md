@@ -4,6 +4,14 @@ Standalone ENS records indexer that watches Ethereum for resolver text-record ch
 
 This is the extracted indexer half of [grailsmarket/backend#178](https://github.com/grailsmarket/backend/pull/178), repackaged as a single deployable Node service.
 
+## Deploy on Railway
+
+Railway one-click deploy buttons require a Railway template. After creating a template from this repo, add the template code to this button URL:
+
+```md
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/YOUR_TEMPLATE_CODE?utm_medium=integration&utm_source=button&utm_campaign=ens-records-indexer)
+```
+
 ## What it does
 
 - Polls Ethereum for `TextChanged` events from ENS public resolvers (current + legacy).
