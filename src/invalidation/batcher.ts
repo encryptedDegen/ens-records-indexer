@@ -63,8 +63,11 @@ export class InvalidationBatcher {
     const chunk = this.buffer.splice(0, this.buffer.length);
     this.flushing = (async () => {
       try {
-        await this.client.send(chunk);
+        await this.client.send_invalidate(chunk);
         this.logger.debug({ reason, itemCount: chunk.length }, 'Flushed invalidation chunk');
+        // Warm caches for the names we just invalidated. Best-effort: send_preload
+        // logs and swallows its own failures, so it never masks a successful flush.
+        await this.client.send_preload(chunk);
       } catch (err) {
         this.logger.error(
           { err, reason, itemCount: chunk.length },

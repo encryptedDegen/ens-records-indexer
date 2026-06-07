@@ -11,9 +11,15 @@ function silentLogger() {
   } as unknown as Parameters<typeof InvalidationBatcher.prototype.constructor>[2];
 }
 
-function fakeClient() {
-  const send = vi.fn().mockResolvedValue(undefined);
-  return { send } as unknown as HttpClient & { send: ReturnType<typeof vi.fn> };
+type FakeClient = HttpClient & {
+  send_invalidate: ReturnType<typeof vi.fn>;
+  send_preload: ReturnType<typeof vi.fn>;
+};
+
+function fakeClient(): FakeClient {
+  const send_invalidate = vi.fn().mockResolvedValue(undefined);
+  const send_preload = vi.fn().mockResolvedValue(undefined);
+  return { send_invalidate, send_preload } as unknown as FakeClient;
 }
 
 describe('InvalidationBatcher', () => {
@@ -32,9 +38,13 @@ describe('InvalidationBatcher', () => {
     await new Promise((r) => setImmediate(r));
     await batcher.flush();
 
-    expect((client as unknown as { send: ReturnType<typeof vi.fn> }).send).toHaveBeenCalledTimes(1);
-    const arg = (client as unknown as { send: ReturnType<typeof vi.fn> }).send.mock.calls[0]![0];
+    expect(client.send_invalidate).toHaveBeenCalledTimes(1);
+    const arg = client.send_invalidate.mock.calls[0]![0];
     expect(arg).toHaveLength(2);
+
+    // preload is fired for the same chunk after a successful invalidation
+    expect(client.send_preload).toHaveBeenCalledTimes(1);
+    expect(client.send_preload.mock.calls[0]![0]).toBe(arg);
   });
 
   it('flushes on shutdown via stop()', async () => {
@@ -48,7 +58,8 @@ describe('InvalidationBatcher', () => {
     batcher.add({ network: 'mainnet', name: 'foo.eth' });
     await batcher.stop();
 
-    expect((client as unknown as { send: ReturnType<typeof vi.fn> }).send).toHaveBeenCalledTimes(1);
+    expect(client.send_invalidate).toHaveBeenCalledTimes(1);
+    expect(client.send_preload).toHaveBeenCalledTimes(1);
   });
 
   it('drops items added after stop()', async () => {
@@ -74,6 +85,7 @@ describe('InvalidationBatcher', () => {
     );
 
     await batcher.flush();
-    expect((client as unknown as { send: ReturnType<typeof vi.fn> }).send).not.toHaveBeenCalled();
+    expect(client.send_invalidate).not.toHaveBeenCalled();
+    expect(client.send_preload).not.toHaveBeenCalled();
   });
 });

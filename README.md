@@ -18,6 +18,7 @@ Railway one-click deploy buttons require a Railway template. After creating a te
 - Filters to keys we care about — currently **`avatar`** and **`header`**.
 - Resolves the affected node hash to an ENS name via The Graph's ENS subgraph (namehash first, labelhash fallback).
 - Batches up to 100 invalidations every 2 s and POSTs them to `/cache/invalidate` with bearer auth.
+- After each successful invalidation, POSTs the same names to `/cache/preload` to warm avatar + header images. Preload is best-effort — failures are logged and swallowed so they never block invalidation.
 - Retries `408/429/502/503/504` with backoff `1, 2, 4, 8, 16 s`. Fails fast on non-retryable status codes.
 - Persists last-processed-block to `data/state.json` so restarts don't re-emit work.
 
@@ -25,7 +26,7 @@ Railway one-click deploy buttons require a Railway template. After creating a te
 
 ```
 Ethereum logs ──► ENSIndexer ──► InvalidationBatcher ──► HttpClient ──► /cache/invalidate
-                  (poll loop)     (debounce + dedupe)     (retry/backoff)
+                  (poll loop)     (debounce + dedupe)     (retry/backoff)  └─► /cache/preload (best-effort)
                        │
                        └─► NameResolver ──► The Graph ENS subgraph
                        │
@@ -41,7 +42,8 @@ Copy `.env.example` to `.env` and fill in:
 | `RPC_URL` | yes | — | Ethereum RPC (Alchemy/Infura) |
 | `CHAIN_ID` | yes | — | `1` mainnet, `11155111` sepolia, `17000` holesky |
 | `METADATA_INVALIDATION_BASE_URL` | yes | — | Base URL of the metadata service |
-| `METADATA_INVALIDATION_AUTH_TOKEN` | yes | — | Bearer token |
+| `METADATA_INVALIDATION_AUTH_TOKEN` | yes | — | Bearer token for `/cache/invalidate` (alias: `CACHE_INVALIDATION_AUTH_TOKEN`) |
+| `CACHE_PRELOAD_TOKEN` | no | invalidation token | Bearer token for `/cache/preload` if the service scopes it separately (aliases: `METADATA_PRELOAD_AUTH_TOKEN`, `CACHE_PRELOAD_AUTH_TOKEN`) |
 | `THE_GRAPH_ENS_SUBGRAPH_URL` | yes | — | Subgraph endpoint URL |
 | `THE_GRAPH_API_KEY` | no | — | Sent as `Bearer` if set |
 | `START_BLOCK` | no | latest − 25 | Used only on first run |
@@ -104,7 +106,7 @@ src/
 │   └── state.ts                # last-processed-block persistence
 ├── invalidation/
 │   ├── batcher.ts              # debounce + flush
-│   ├── http-client.ts          # POST + retry/backoff + dedupe
+│   ├── http-client.ts          # invalidate + preload POSTs, retry/backoff, dedupe
 │   └── types.ts
 ├── http/healthcheck.ts         # /health, /status
 └── utils/logger.ts             # pino

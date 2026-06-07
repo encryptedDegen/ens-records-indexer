@@ -7,6 +7,9 @@ const ENV_KEYS = [
   'METADATA_INVALIDATION_BASE_URL',
   'METADATA_INVALIDATION_AUTH_TOKEN',
   'CACHE_INVALIDATION_AUTH_TOKEN',
+  'METADATA_PRELOAD_AUTH_TOKEN',
+  'CACHE_PRELOAD_AUTH_TOKEN',
+  'CACHE_PRELOAD_TOKEN',
   'THE_GRAPH_ENS_SUBGRAPH_URL',
   'THE_GRAPH_API_KEY',
   'PORT',
@@ -77,6 +80,31 @@ describe('loadConfig', () => {
     });
     const cfg = loadConfig();
     expect(cfg.metadataInvalidation.authToken).toBe('tok');
+  });
+
+  it('leaves preloadAuthToken unset when no preload env var is given', () => {
+    setEnv({
+      RPC_URL: 'https://eth.example.com',
+      CHAIN_ID: '1',
+      METADATA_INVALIDATION_BASE_URL: 'https://meta.example.com',
+      METADATA_INVALIDATION_AUTH_TOKEN: 'tok',
+      THE_GRAPH_ENS_SUBGRAPH_URL: 'https://graph.example.com',
+    });
+    const cfg = loadConfig();
+    expect(cfg.metadataInvalidation.preloadAuthToken).toBeUndefined();
+  });
+
+  it('reads a separate preload auth token (CACHE_PRELOAD_TOKEN)', () => {
+    setEnv({
+      RPC_URL: 'https://eth.example.com',
+      CHAIN_ID: '1',
+      METADATA_INVALIDATION_BASE_URL: 'https://meta.example.com',
+      METADATA_INVALIDATION_AUTH_TOKEN: 'tok',
+      CACHE_PRELOAD_TOKEN: 'preload-tok',
+      THE_GRAPH_ENS_SUBGRAPH_URL: 'https://graph.example.com',
+    });
+    const cfg = loadConfig();
+    expect(cfg.metadataInvalidation.preloadAuthToken).toBe('preload-tok');
   });
 
   it('throws on missing required vars', () => {

@@ -12,6 +12,8 @@ const ENV_VAR_LABELS: Record<string, string> = {
   'metadataInvalidation.baseUrl': 'METADATA_INVALIDATION_BASE_URL',
   'metadataInvalidation.authToken':
     'METADATA_INVALIDATION_AUTH_TOKEN or CACHE_INVALIDATION_AUTH_TOKEN',
+  'metadataInvalidation.preloadAuthToken':
+    'METADATA_PRELOAD_AUTH_TOKEN or CACHE_PRELOAD_TOKEN',
   'theGraph.ensSubgraphUrl': 'THE_GRAPH_ENS_SUBGRAPH_URL',
   'theGraph.apiKey': 'THE_GRAPH_API_KEY',
   statePath: 'STATE_PATH',
@@ -31,6 +33,9 @@ const ConfigSchema = z.object({
   metadataInvalidation: z.object({
     baseUrl: z.string().url(),
     authToken: z.string().min(1),
+    // Optional: the service uses a separate secret for /cache/preload so it can
+    // be rotated/scoped independently. Falls back to authToken when unset.
+    preloadAuthToken: z.string().min(1).optional(),
   }),
   theGraph: z.object({
     ensSubgraphUrl: z.string().url(),
@@ -75,6 +80,11 @@ export function loadConfig(): AppConfig {
       authToken: readEnv(
         'METADATA_INVALIDATION_AUTH_TOKEN',
         'CACHE_INVALIDATION_AUTH_TOKEN',
+      ),
+      preloadAuthToken: readEnv(
+        'METADATA_PRELOAD_AUTH_TOKEN',
+        'CACHE_PRELOAD_AUTH_TOKEN',
+        'CACHE_PRELOAD_TOKEN',
       ),
     },
     theGraph: {
