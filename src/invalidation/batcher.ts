@@ -1,5 +1,5 @@
 import type { Logger } from '../utils/logger.js';
-import { HttpClient } from './http-client.js';
+import type { HttpClient } from './http-client.js';
 import type { InvalidateItem } from './types.js';
 
 export interface BatcherOptions {
@@ -15,8 +15,9 @@ export interface BatcherOptions {
  * - flush whenever buffer reaches maxSize, or windowMs elapses since first item
  * - delegates HTTP/retry to HttpClient
  *
- * On non-retryable failure the chunk is dropped after logging — same behaviour
- * as the original pg-boss worker which would also fail-fast and retire the job.
+ * On failure the chunk is dropped after logging. Only one chunk is in flight
+ * at a time, and every request respects maxSize even when one event fans out
+ * to many names while a previous request is pending.
  */
 export class InvalidationBatcher {
   private buffer: InvalidateItem[] = [];
@@ -50,18 +51,28 @@ export class InvalidationBatcher {
     }
   }
 
-  async flush(reason: 'size' | 'timer' | 'shutdown' = 'timer'): Promise<void> {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+  flush(reason: 'size' | 'timer' | 'shutdown' = 'timer'): Promise<void> {
+    this.clearTimer();
 
-    if (this.buffer.length === 0) return;
+    // Join the active drain even if its current chunk emptied the buffer.
+    // In particular, shutdown must wait for that request and its preload.
+    if (this.flushing) return this.flushing;
+    if (this.buffer.length === 0) return Promise.resolve();
 
-    if (this.flushing) await this.flushing.catch(() => undefined);
+    this.flushing = this.drain(reason).finally(() => {
+      this.flushing = null;
+      this.clearTimer();
 
-    const chunk = this.buffer.splice(0, this.buffer.length);
-    this.flushing = (async () => {
+      // An add() can run between the drain resolving and this continuation.
+      // Include those items before resolving callers waiting on the flush.
+      if (this.buffer.length > 0) return this.flush(reason);
+    });
+    return this.flushing;
+  }
+
+  private async drain(reason: 'size' | 'timer' | 'shutdown'): Promise<void> {
+    while (this.buffer.length > 0) {
+      const chunk = this.buffer.splice(0, this.options.maxSize);
       try {
         await this.client.send_invalidate(chunk);
         this.logger.debug({ reason, itemCount: chunk.length }, 'Flushed invalidation chunk');
@@ -74,12 +85,13 @@ export class InvalidationBatcher {
           'Failed to flush invalidation chunk',
         );
       }
-    })();
+    }
+  }
 
-    try {
-      await this.flushing;
-    } finally {
-      this.flushing = null;
+  private clearTimer(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
     }
   }
 

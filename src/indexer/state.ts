@@ -1,11 +1,29 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { z } from 'zod';
 import type { Logger } from '../utils/logger.js';
 
-export interface IndexerState {
-  lastProcessedBlock: number;
-  updatedAt: string;
-}
+const AddressSchema = z.custom<`0x${string}`>(
+  (value) => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value),
+);
+const BlockSchema = z.number().int().safe().nonnegative();
+const V2StateSchema = z.object({
+  chainId: z.number().int().positive(),
+  startBlock: BlockSchema,
+  lastProcessedBlock: z.number().int().safe().min(-1),
+  resolverTargets: z.record(z.string().regex(/^0x[0-9a-fA-F]{40}$/), z.array(z.object({
+    registry: AddressSchema,
+    tokenId: z.string().regex(/^\d+$/),
+  }))),
+});
+const StateSchema = z.object({
+  lastProcessedBlock: BlockSchema,
+  updatedAt: z.string().default(() => new Date().toISOString()),
+  ensV2: V2StateSchema.optional(),
+});
+
+export type EnsV2State = z.infer<typeof V2StateSchema>;
+export type IndexerState = z.infer<typeof StateSchema>;
 
 export class StateStore {
   constructor(
@@ -16,20 +34,16 @@ export class StateStore {
   async load(): Promise<IndexerState | null> {
     try {
       const raw = await fs.readFile(this.statePath, 'utf-8');
-      const parsed = JSON.parse(raw) as Partial<IndexerState>;
-      if (typeof parsed.lastProcessedBlock !== 'number') return null;
-      return {
-        lastProcessedBlock: parsed.lastProcessedBlock,
-        updatedAt: parsed.updatedAt ?? new Date().toISOString(),
-      };
+      return StateSchema.parse(JSON.parse(raw));
     } catch (err: unknown) {
       const error = err as NodeJS.ErrnoException;
       if (error.code === 'ENOENT') {
         this.logger.info({ statePath: this.statePath }, 'No prior state file; starting fresh');
         return null;
       }
-      this.logger.warn({ err }, 'Failed to read state file; starting fresh');
-      return null;
+      // Silently resetting would discard the resolver history needed to
+      // invalidate names when a default bundle is removed.
+      throw new Error(`Failed to load indexer state at ${this.statePath}`, { cause: err });
     }
   }
 

@@ -3,6 +3,8 @@ import type { MetadataInvalidationNetwork } from '../config.js';
 export interface InvalidateItem {
   network: MetadataInvalidationNetwork;
   name?: string;
+  /** Parent registry for ENSv2 tokens; requires tokenId. */
+  contract?: string;
   tokenId?: string;
 }
 
