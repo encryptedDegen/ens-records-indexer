@@ -16,6 +16,8 @@ const ENV_VAR_LABELS: Record<string, string> = {
     'METADATA_PRELOAD_AUTH_TOKEN or CACHE_PRELOAD_TOKEN',
   'theGraph.ensSubgraphUrl': 'THE_GRAPH_ENS_SUBGRAPH_URL',
   'theGraph.apiKey': 'THE_GRAPH_API_KEY',
+  'ensV2.workerUrl': 'ENS_V2_WORKER_URL',
+  'ensV2.startBlock': 'ENS_V2_START_BLOCK',
   statePath: 'STATE_PATH',
   port: 'PORT',
   logLevel: 'LOG_LEVEL',
@@ -29,7 +31,7 @@ const ConfigSchema = z.object({
   confirmations: z.number().int().nonnegative().default(12),
   logRangeBlocks: z.number().int().positive().default(100),
   batchWindowMs: z.number().int().positive().default(2_000),
-  batchMaxSize: z.number().int().positive().default(100),
+  batchMaxSize: z.number().int().positive().max(100).default(100),
   metadataInvalidation: z.object({
     baseUrl: z.string().url(),
     authToken: z.string().min(1),
@@ -41,6 +43,10 @@ const ConfigSchema = z.object({
     ensSubgraphUrl: z.string().url(),
     apiKey: z.string().optional(),
   }),
+  ensV2: z.object({
+    workerUrl: z.string().url(),
+    startBlock: z.number().int().safe().nonnegative(),
+  }).optional(),
   statePath: z.string().default('./data/state.json'),
   port: z.number().int().positive().default(8080),
   logLevel: z
@@ -52,9 +58,8 @@ export type AppConfig = z.infer<typeof ConfigSchema>;
 
 function parseIntEnv(value: string | undefined): number | undefined {
   if (value === undefined || value === '') return undefined;
-  const n = Number.parseInt(value, 10);
-  if (!Number.isFinite(n)) return undefined;
-  return n;
+  // Leave invalid values as NaN so schema validation reports the env var.
+  return /^\d+$/.test(value) ? Number(value) : Number.NaN;
 }
 
 function readEnv(...names: string[]): string | undefined {
@@ -66,6 +71,8 @@ function readEnv(...names: string[]): string | undefined {
 }
 
 export function loadConfig(): AppConfig {
+  const v2WorkerUrl = readEnv('ENS_V2_WORKER_URL');
+  const v2StartBlock = readEnv('ENS_V2_START_BLOCK');
   const raw = {
     rpcUrl: readEnv('RPC_URL'),
     chainId: parseIntEnv(readEnv('CHAIN_ID')),
@@ -91,6 +98,9 @@ export function loadConfig(): AppConfig {
       ensSubgraphUrl: readEnv('THE_GRAPH_ENS_SUBGRAPH_URL'),
       apiKey: readEnv('THE_GRAPH_API_KEY'),
     },
+    ensV2: v2WorkerUrl !== undefined || v2StartBlock !== undefined
+      ? { workerUrl: v2WorkerUrl, startBlock: parseIntEnv(v2StartBlock) }
+      : undefined,
     statePath: readEnv('STATE_PATH'),
     port: parseIntEnv(readEnv('PORT')),
     logLevel: readEnv('LOG_LEVEL'),

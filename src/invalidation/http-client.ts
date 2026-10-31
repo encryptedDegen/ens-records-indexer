@@ -16,21 +16,20 @@ function sleep(ms: number): Promise<void> {
 
 function normalizeItem(item: InvalidateItem): InvalidateItem | null {
   const name = item.name?.trim().toLowerCase();
+  const contract = item.contract?.trim().toLowerCase();
   const tokenId = item.tokenId?.trim();
   if (!name && !tokenId) return null;
+  if (contract && !tokenId) return null;
 
   const out: InvalidateItem = { network: item.network };
   if (name) out.name = name;
+  if (contract) out.contract = contract;
   if (tokenId) out.tokenId = tokenId;
   return out;
 }
 
 function dedupeKey(item: InvalidateItem): string {
-  if (item.name && item.tokenId) {
-    return `${item.network}|name:${item.name}|token:${item.tokenId}`;
-  }
-  if (item.name) return `${item.network}|name:${item.name}`;
-  return `${item.network}|token:${item.tokenId}`;
+  return JSON.stringify([item.network, item.name, item.contract, item.tokenId]);
 }
 
 export function dedupeInvalidationItems(items: InvalidateItem[]): InvalidateItem[] {
